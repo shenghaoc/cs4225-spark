@@ -44,7 +44,23 @@ public class FindPath {
                 .load(args[0]);
 
         Dataset<Row> highwayDf = wayDf.where("'highway'=tag._k[0]");
-        
+
+        Dataset<Row> v = nodeDf.select("_id", "_lat", "_lon").withColumnRenamed("_id", "id");
+
+        Dataset<Row> srcDf = highwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
+            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+            return list.subList(0, list.size() - 1).iterator();
+        }, Encoders.LONG()).withColumnRenamed("value", "src");
+
+        Dataset<Row> dstDf = highwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
+            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+            return list.subList(1, list.size()).iterator();
+        }, Encoders.LONG()).withColumnRenamed("value", "dst");
+
+        Dataset<Row> e = srcDf.join(dstDf);
+
+        GraphFrame g = new GraphFrame(v, e);
+
         spark.stop();
     }
 }
