@@ -42,6 +42,9 @@ public class FindPath {
                 .format("xml")
                 .option("rowTag", "way")
                 .load(args[0]);
+
+        Dataset<Row> highwayDf = wayDf.where("'highway'=tag._k[0]");
+        
         spark.stop();
     }
 }
