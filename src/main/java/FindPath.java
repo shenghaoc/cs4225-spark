@@ -28,6 +28,20 @@ public class FindPath {
     }
 
     public static void main(String[] args) {
+        SparkSession spark = SparkSession.builder()
+                .master("local[2]")
+                .appName("FindPath")
+                .getOrCreate();
+
+        Dataset<Row> nodeDf = spark.read()
+                .format("xml")
+                .option("rowTag", "node")
+                .load(args[0]);
+
+        Dataset<Row> wayDf = spark.read()
+                .format("xml")
+                .option("rowTag", "way")
+                .load(args[0]);
         spark.stop();
     }
 }
