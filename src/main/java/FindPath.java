@@ -29,7 +29,7 @@ public class FindPath {
 
     public static void main(String[] args) {
         SparkSession spark = SparkSession.builder()
-                .master("local[2]")
+                .master("local[4]")
                 .appName("FindPath")
                 .getOrCreate();
 
@@ -44,6 +44,7 @@ public class FindPath {
                 .load(args[0]);
 
         Dataset<Row> highwayDf = wayDf.where("array_contains(tag._k,'highway')");
+        Dataset<Row> revHighwayDf = highwayDf.where("!array_contains(tag,named_struct('_VALUE', CAST(NULL as string), '_k','oneway','_v','yes'))");
 
         Dataset<Row> v = nodeDf.select("_id", "_lat", "_lon").withColumnRenamed("_id", "id");
 
@@ -51,15 +52,28 @@ public class FindPath {
             List<Long> list = ((List<Long>) (Object) (n.getList(0)));
             return list.subList(0, list.size() - 1).iterator();
         }, Encoders.LONG()).withColumnRenamed("value", "src");
-        srcDf = srcDf.withColumn("id", functions.monotonically_increasing_id());
 
         Dataset<Row> dstDf = highwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
             List<Long> list = ((List<Long>) (Object) (n.getList(0)));
             return list.subList(1, list.size()).iterator();
         }, Encoders.LONG()).withColumnRenamed("value", "dst");
-        dstDf = dstDf.withColumn("id", functions.monotonically_increasing_id());
 
-        Dataset<Row> e = srcDf.join(dstDf, "id");
+        Dataset<Row> revSrcDf = revHighwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
+            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+            return list.subList(1, list.size()).iterator();
+        }, Encoders.LONG()).withColumnRenamed("value", "src");
+
+        Dataset<Row> revDstDf = revHighwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
+            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+            return list.subList(0, list.size() - 1).iterator();
+        }, Encoders.LONG()).withColumnRenamed("value", "dst");
+
+        Dataset<Row> fullSrcDf = srcDf.union(revSrcDf);
+        Dataset<Row> fullDstDf = dstDf.union(revDstDf);
+        fullSrcDf = fullSrcDf.withColumn("id", functions.monotonically_increasing_id());
+        fullDstDf = fullDstDf.withColumn("id", functions.monotonically_increasing_id());
+
+        Dataset<Row> e = fullSrcDf.join(fullDstDf, "id");
 
         GraphFrame g = new GraphFrame(v, e);
 
