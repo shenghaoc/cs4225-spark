@@ -74,11 +74,14 @@ public class FindPath {
         fullSrcDf = fullSrcDf.withColumn("id", functions.monotonically_increasing_id());
         fullDstDf = fullDstDf.withColumn("id", functions.monotonically_increasing_id());
 
-        Dataset<Row> e = fullSrcDf.join(fullDstDf, "id");
+        Dataset<Row> e = fullSrcDf
+                .join(fullDstDf, "id")
+                .select("src", "dst");
 
         GraphFrame g = new GraphFrame(v, e);
 
-        Dataset<Row> tmpEdges = g.edges().select("src", "dst")
+        Dataset<Row> tmpEdges = g.edges()
+                .distinct()
                 .coalesce(1).groupBy("src")
                 .agg(functions.collect_list("dst").as("dst"));
 
