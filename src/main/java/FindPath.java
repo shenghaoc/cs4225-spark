@@ -19,7 +19,7 @@ public class FindPath {
         double lonDistance = Math.toRadians(lon2 - lon1);
         double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+                        * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         double distance = R * c * 1000; // convert to meters
         double height = 0; // For this assignment, we assume all locations have the same height.
@@ -44,7 +44,8 @@ public class FindPath {
                 .load(args[0]);
 
         Dataset<Row> highwayDf = wayDf.where("array_contains(tag._k,'highway')");
-        Dataset<Row> revHighwayDf = highwayDf.where("!array_contains(tag,named_struct('_VALUE', CAST(NULL as string), '_k','oneway','_v','yes'))");
+        Dataset<Row> revHighwayDf = highwayDf
+                .where("!array_contains(tag,named_struct('_VALUE', CAST(NULL as string), '_k','oneway','_v','yes'))");
 
         Dataset<Row> v = nodeDf.select("_id", "_lat", "_lon").withColumnRenamed("_id", "id");
 
@@ -76,6 +77,15 @@ public class FindPath {
         Dataset<Row> e = fullSrcDf.join(fullDstDf, "id");
 
         GraphFrame g = new GraphFrame(v, e);
+
+        Dataset<Row> tmpEdges = g.edges().select("src", "dst")
+                .coalesce(1).groupBy("src")
+                .agg(functions.collect_list("dst").as("dst"));
+
+        tmpEdges.withColumn("dst", functions.concat_ws(" ", tmpEdges.col("dst")))
+                .map((MapFunction<Row, String>) x -> x.get(0).toString() + " " + x.get(1).toString(), Encoders.STRING())
+                .write()
+                .text(args[2]);
 
         spark.stop();
     }
