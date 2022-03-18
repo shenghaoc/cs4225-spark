@@ -51,13 +51,15 @@ public class FindPath {
             List<Long> list = ((List<Long>) (Object) (n.getList(0)));
             return list.subList(0, list.size() - 1).iterator();
         }, Encoders.LONG()).withColumnRenamed("value", "src");
+        srcDf = srcDf.withColumn("id", functions.monotonically_increasing_id());
 
         Dataset<Row> dstDf = highwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
             List<Long> list = ((List<Long>) (Object) (n.getList(0)));
             return list.subList(1, list.size()).iterator();
         }, Encoders.LONG()).withColumnRenamed("value", "dst");
+        dstDf = dstDf.withColumn("id", functions.monotonically_increasing_id());
 
-        Dataset<Row> e = srcDf.join(dstDf);
+        Dataset<Row> e = srcDf.join(dstDf, "id");
 
         GraphFrame g = new GraphFrame(v, e);
 
