@@ -43,7 +43,7 @@ public class FindPath {
                 .option("rowTag", "way")
                 .load(args[0]);
 
-        Dataset<Row> highwayDf = wayDf.where("'highway'=tag._k[0]");
+        Dataset<Row> highwayDf = wayDf.where("array_contains(tag._k,'highway')");
 
         Dataset<Row> v = nodeDf.select("_id", "_lat", "_lon").withColumnRenamed("_id", "id");
 
