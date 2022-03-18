@@ -29,7 +29,7 @@ public class FindPath {
 
     public static void main(String[] args) {
         SparkSession spark = SparkSession.builder()
-                .master("local[4]")
+                .master("local[*]")
                 .appName("FindPath")
                 .getOrCreate();
 
@@ -77,6 +77,9 @@ public class FindPath {
         Dataset<Row> e = fullSrcDf
                 .join(fullDstDf, "id")
                 .select("src", "dst");
+
+        Dataset<Row> deadEnds = e.select("dst").except(e.select("src"));
+        e = e.unionByName(deadEnds.select("dst").withColumnRenamed("dst", "src").withColumn("dst", functions.lit(null).cast("long")));
 
         GraphFrame g = new GraphFrame(v, e);
 
