@@ -29,7 +29,6 @@ public class FindPath {
 
     public static void main(String[] args) {
         SparkSession spark = SparkSession.builder()
-                .master("local[*]")
                 .appName("FindPath")
                 .getOrCreate();
 
@@ -110,7 +109,8 @@ public class FindPath {
 
         Dataset<Row> tmpEdges = g.edges()
                 .distinct()
-                .coalesce(1).groupBy("src")
+                .coalesce(1)
+                .groupBy("src")
                 .agg(functions.collect_list("dst").as("dst"));
 
         tmpEdges.withColumn("dst", functions.concat_ws(" ", tmpEdges.col("dst")))
