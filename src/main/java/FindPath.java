@@ -92,17 +92,17 @@ public class FindPath {
         e = e.unionByName(deadEnds.select("dst").withColumnRenamed("dst", "src").withColumn("dst",
                 functions.lit(null).cast("Long")));
 
-        Dataset<Row> v1 = v.withColumnRenamed("id", "src").withColumnRenamed("_lat", "lat1").withColumnRenamed("_lon",
+        Dataset<Row> v1 = v.withColumnRenamed("id", "id1").withColumnRenamed("_lat", "lat1").withColumnRenamed("_lon",
                 "lon1");
-        Dataset<Row> v2 = v.withColumnRenamed("id", "dst").withColumnRenamed("_lat", "lat2").withColumnRenamed("_lon",
+        Dataset<Row> v2 = v.withColumnRenamed("id", "id2").withColumnRenamed("_lat", "lat2").withColumnRenamed("_lon",
                 "lon2");
-
+                
         org.apache.spark.sql.expressions.UserDefinedFunction udfDistance = functions.udf(
-                (Double lat1, Double lat2, Double lon1, Double lon2) -> distance(lat1, lat2, lon1, lon2),
+                (Double lat1, Double lat2, Double lon1, Double lon2) -> distance(java.util.Optional.ofNullable(lat1).orElse(0.0), java.util.Optional.ofNullable(lat2).orElse(0.0), java.util.Optional.ofNullable(lon1).orElse(0.0), java.util.Optional.ofNullable(lon2).orElse(0.0)),
                 org.apache.spark.sql.types.DataTypes.DoubleType);
         spark.udf().register("udfDistance", udfDistance);
-        e = e.join(v1, "src")
-                .join(v2, "dst");
+        e = e.join(v1, e.col("src").equalTo(v1.col("id1")), "inner")
+                .join(v2, e.col("dst").equalTo(v2.col("id2")), "leftouter");
 
         e = e.withColumn("dist",
                 functions.callUDF("udfDistance", e.col("lat1"), e.col("lat2"), e.col("lon1"), e.col("lon2")))
