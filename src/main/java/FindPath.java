@@ -12,6 +12,12 @@ import java.util.Collections;
 import java.util.List;
 
 public class FindPath {
+        
+    private static final String tmpDirName = "tmp";
+    private static final String outputFileNamePattern = "part-00000-*-c000.txt";
+    
+    private static final org.apache.hadoop.fs.Path tmpDir = new org.apache.hadoop.fs.Path(tmpDirName);
+
     // From: https://stackoverflow.com/questions/3694380/calculating-distance-between-two-points-using-latitude-longitude
     private static double distance(double lat1, double lat2, double lon1, double lon2) {
         final int R = 6371; // Radius of the earth
@@ -27,7 +33,7 @@ public class FindPath {
         return Math.sqrt(distance);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         SparkSession spark = SparkSession.builder()
                 .appName("FindPath")
                 .getOrCreate();
@@ -116,7 +122,13 @@ public class FindPath {
         tmpEdges.withColumn("dst", functions.concat_ws(" ", tmpEdges.col("dst")))
                 .map((MapFunction<Row, String>) x -> x.get(0).toString() + " " + x.get(1).toString(), Encoders.STRING())
                 .write()
-                .text(args[2]);
+                .text(tmpDirName);
+
+        org.apache.hadoop.fs.FileSystem fs = org.apache.hadoop.fs.FileSystem.get(spark.sparkContext().hadoopConfiguration());
+        String file = fs.globStatus(new org.apache.hadoop.fs.Path(tmpDir + org.apache.hadoop.fs.Path.SEPARATOR + outputFileNamePattern))[0].getPath().getName();
+        fs.rename(new org.apache.hadoop.fs.Path(tmpDir + org.apache.hadoop.fs.Path.SEPARATOR + file), new org.apache.hadoop.fs.Path(args[2]));
+        
+        fs.deleteOnExit(tmpDir);
 
         spark.stop();
     }
