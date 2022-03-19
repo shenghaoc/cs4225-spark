@@ -12,10 +12,10 @@ import java.util.Collections;
 import java.util.List;
 
 public class FindPath {
-        
+
     private static final String tmpDirName = "tmp";
     private static final String outputFileNamePattern = "part-00000-*-c000.txt";
-    
+
     private static final org.apache.hadoop.fs.Path tmpDir = new org.apache.hadoop.fs.Path(tmpDirName);
 
     // From: https://stackoverflow.com/questions/3694380/calculating-distance-between-two-points-using-latitude-longitude
@@ -47,37 +47,45 @@ public class FindPath {
                 .format("xml")
                 .option("rowTag", "way")
                 .load(args[0]);
-        
+
         Dataset<Row> input = spark.read().text(args[1]);
-        input = input.withColumn("src", functions.split(input.col("value"), " ").getItem(0).cast(org.apache.spark.sql.types.DataTypes.LongType))
-                .withColumn("dst", functions.split(input.col("value"), " ").getItem(1).cast(org.apache.spark.sql.types.DataTypes.LongType))
+        input = input.withColumn("src", functions.split(input.col("value"), " ").getItem(0))
+                .withColumn("dst", functions.split(input.col("value"), " ").getItem(1))
                 .drop("value");
 
         Dataset<Row> highwayDf = wayDf.where("array_contains(tag._k,'highway')");
         Dataset<Row> revHighwayDf = highwayDf
                 .where("!array_contains(tag,named_struct('_VALUE', CAST(NULL as string), '_k','oneway','_v','yes'))");
 
-        Dataset<Row> v = nodeDf.select("_id", "_lat", "_lon").withColumnRenamed("_id", "id");
+        Dataset<Row> v = nodeDf.select(nodeDf.col("_id").cast("string").as("id"), nodeDf.col("_lat"),
+                nodeDf.col("_lon"));
 
-        Dataset<Row> srcDf = highwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
-            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+        Dataset<Row> pathDf = highwayDf.select("nd._ref").selectExpr("cast(_ref as array<string>) _ref");
+        Dataset<Row> revPathDf = revHighwayDf.select("nd._ref").selectExpr("cast(_ref as array<string>) _ref");
+
+        Dataset<Row> srcDf = pathDf.flatMap((FlatMapFunction<Row, String>) n -> {
+            List<String> list = n.getList(0).stream().map(Object::toString)
+                    .collect(java.util.stream.Collectors.toList());
             return list.subList(0, list.size() - 1).iterator();
-        }, Encoders.LONG()).withColumnRenamed("value", "src");
+        }, Encoders.STRING()).withColumnRenamed("value", "src");
 
-        Dataset<Row> dstDf = highwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
-            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+        Dataset<Row> dstDf = pathDf.flatMap((FlatMapFunction<Row, String>) n -> {
+            List<String> list = n.getList(0).stream().map(Object::toString)
+                    .collect(java.util.stream.Collectors.toList());
             return list.subList(1, list.size()).iterator();
-        }, Encoders.LONG()).withColumnRenamed("value", "dst");
+        }, Encoders.STRING()).withColumnRenamed("value", "dst");
 
-        Dataset<Row> revSrcDf = revHighwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
-            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+        Dataset<Row> revSrcDf = revPathDf.flatMap((FlatMapFunction<Row, String>) n -> {
+            List<String> list = n.getList(0).stream().map(Object::toString)
+                    .collect(java.util.stream.Collectors.toList());
             return list.subList(1, list.size()).iterator();
-        }, Encoders.LONG()).withColumnRenamed("value", "src");
+        }, Encoders.STRING()).withColumnRenamed("value", "src");
 
-        Dataset<Row> revDstDf = revHighwayDf.select("nd._ref").flatMap((FlatMapFunction<Row, Long>) n -> {
-            List<Long> list = ((List<Long>) (Object) (n.getList(0)));
+        Dataset<Row> revDstDf = revPathDf.flatMap((FlatMapFunction<Row, String>) n -> {
+            List<String> list = n.getList(0).stream().map(Object::toString)
+                    .collect(java.util.stream.Collectors.toList());
             return list.subList(0, list.size() - 1).iterator();
-        }, Encoders.LONG()).withColumnRenamed("value", "dst");
+        }, Encoders.STRING()).withColumnRenamed("value", "dst");
 
         Dataset<Row> fullSrcDf = srcDf.union(revSrcDf);
         Dataset<Row> fullDstDf = dstDf.union(revDstDf);
@@ -90,13 +98,13 @@ public class FindPath {
 
         Dataset<Row> deadEnds = e.select("dst").except(e.select("src"));
         e = e.unionByName(deadEnds.select("dst").withColumnRenamed("dst", "src").withColumn("dst",
-                functions.lit(null).cast("Long")));
+                functions.lit(null).cast("string")));
 
         Dataset<Row> v1 = v.withColumnRenamed("id", "id1").withColumnRenamed("_lat", "lat1").withColumnRenamed("_lon",
                 "lon1");
         Dataset<Row> v2 = v.withColumnRenamed("id", "id2").withColumnRenamed("_lat", "lat2").withColumnRenamed("_lon",
                 "lon2");
-                
+
         org.apache.spark.sql.expressions.UserDefinedFunction udfDistance = functions.udf(
                 (Double lat1, Double lat2, Double lon1, Double lon2) -> distance(java.util.Optional.ofNullable(lat1).orElse(0.0), java.util.Optional.ofNullable(lat2).orElse(0.0), java.util.Optional.ofNullable(lon1).orElse(0.0), java.util.Optional.ofNullable(lon2).orElse(0.0)),
                 org.apache.spark.sql.types.DataTypes.DoubleType);
@@ -127,7 +135,7 @@ public class FindPath {
         org.apache.hadoop.fs.FileSystem fs = org.apache.hadoop.fs.FileSystem.get(spark.sparkContext().hadoopConfiguration());
         String file = fs.globStatus(new org.apache.hadoop.fs.Path(tmpDir + org.apache.hadoop.fs.Path.SEPARATOR + outputFileNamePattern))[0].getPath().getName();
         fs.rename(new org.apache.hadoop.fs.Path(tmpDir + org.apache.hadoop.fs.Path.SEPARATOR + file), new org.apache.hadoop.fs.Path(args[2]));
-        
+
         fs.deleteOnExit(tmpDir);
 
         spark.stop();
