@@ -49,8 +49,8 @@ public class FindPath {
                 .load(args[0]);
         
         Dataset<Row> input = spark.read().text(args[1]);
-        input = input.withColumn("src", functions.split(input.col("value"), " ").getItem(0))
-                .withColumn("dst", functions.split(input.col("value"), " ").getItem(1))
+        input = input.withColumn("src", functions.split(input.col("value"), " ").getItem(0).cast(org.apache.spark.sql.types.DataTypes.LongType))
+                .withColumn("dst", functions.split(input.col("value"), " ").getItem(1).cast(org.apache.spark.sql.types.DataTypes.LongType))
                 .drop("value");
 
         Dataset<Row> highwayDf = wayDf.where("array_contains(tag._k,'highway')");
