@@ -52,8 +52,8 @@ public class FindPath {
         input = input.withColumn("start", functions.split(input.col("value"), " ").getItem(0))
                 .withColumn("end", functions.split(input.col("value"), " ").getItem(1))
                 .drop("value");
-        List<String> startList = input.select("start").collectAsList().stream().map(Row::toString).collect(java.util.stream.Collectors.toList());
-        List<String> endList = input.select("end").collectAsList().stream().map(Row::toString).collect(java.util.stream.Collectors.toList());
+        List<String> startList = input.select("start").collectAsList().stream().map(r -> r.get(0).toString()).collect(java.util.stream.Collectors.toList());
+        List<String> endList = input.select("end").collectAsList().stream().map(r -> r.get(0).toString()).collect(java.util.stream.Collectors.toList());
 
         Dataset<Row> highwayDf = wayDf.where("array_contains(tag._k,'highway')");
         Dataset<Row> revHighwayDf = highwayDf
