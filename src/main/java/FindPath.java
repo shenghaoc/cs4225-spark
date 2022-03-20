@@ -51,7 +51,7 @@ public class FindPath {
         Dataset<Row> cached_vertices = AggregateMessages.getCachedDataFrame(vertices);
         GraphFrame g2 = new GraphFrame(cached_vertices, g.edges());
 
-        while (g2.vertices().filter("visited == False").count() != 0) {
+        while (!g2.vertices().filter("visited == False").isEmpty()) {
             Object current_node_id = g2.vertices().filter("visited == False").sort("distance").first().getAs("id");
 
             Column msg_distance = AggregateMessages.edge().getField(column_name)
@@ -191,7 +191,7 @@ public class FindPath {
                 functions.callUDF("udfDistance", e.col("lat1"), e.col("lat2"), e.col("lon1"), e.col("lon2")))
                 .select("src", "dst", "dist");
 
-        GraphFrame g = new GraphFrame(v, e);
+        GraphFrame g = new GraphFrame(v, e).dropIsolatedVertices();
 
         v.cache();
         e.cache();
