@@ -222,7 +222,7 @@ public class FindPath {
         for (int i = 0; i < startList.size(); i++) {
                 List<String> path = shortestPath(spark, g, startList.get(i), endList.get(i), "dist").select("path")
                                 .first().getList(0);
-                bufferedWriter.write(path.stream().collect(java.util.stream.Collectors.joining("->")).toString());
+                bufferedWriter.write(path.stream().collect(java.util.stream.Collectors.joining(" -> ")).toString());
                 bufferedWriter.newLine();
                 bufferedWriter.flush();
         }
