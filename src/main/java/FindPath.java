@@ -33,7 +33,7 @@ public class FindPath {
         return Math.sqrt(distance);
     }
 
-    private static Dataset<Row> shortest_path(SparkSession spark, GraphFrame g, String origin, String destination,
+    private static Dataset<Row> shortestPath(SparkSession spark, GraphFrame g, String origin, String destination,
                                               String column_name) {
 
         if (g.vertices().filter(g.vertices().col("id").equalTo(destination)).count() == 0) {
@@ -216,6 +216,19 @@ public class FindPath {
 
         fs.deleteOnExit(tmpDir);
 
+        org.apache.hadoop.fs.FSDataOutputStream fsDataOutputStream = fs.create(new org.apache.hadoop.fs.Path(args[3]));
+        java.io.BufferedWriter bufferedWriter = new java.io.BufferedWriter(
+                        new java.io.OutputStreamWriter(fsDataOutputStream));
+        for (int i = 0; i < startList.size(); i++) {
+                List<String> path = shortestPath(spark, g, startList.get(i), endList.get(i), "dist").select("path")
+                                .first().getList(0);
+                bufferedWriter.write(path.stream().collect(java.util.stream.Collectors.joining("->")).toString());
+                bufferedWriter.newLine();
+                bufferedWriter.flush();
+        }
+
+        bufferedWriter.close();
+        fs.close();
         spark.stop();
     }
 }
