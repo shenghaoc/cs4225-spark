@@ -143,26 +143,22 @@ public class FindPath {
         Dataset<Row> revPathDf = revHighwayDf.select("nd._ref").selectExpr("cast(_ref as array<string>) _ref");
 
         Dataset<Row> srcDf = pathDf.flatMap((FlatMapFunction<Row, String>) n -> {
-            List<String> list = n.getList(0).stream().map(Object::toString)
-                    .collect(java.util.stream.Collectors.toList());
+            List<String> list = ((List<String>) (Object) (n.getList(0)));
             return list.subList(0, list.size() - 1).iterator();
         }, Encoders.STRING()).withColumnRenamed("value", "src");
 
         Dataset<Row> dstDf = pathDf.flatMap((FlatMapFunction<Row, String>) n -> {
-            List<String> list = n.getList(0).stream().map(Object::toString)
-                    .collect(java.util.stream.Collectors.toList());
+            List<String> list = ((List<String>) (Object) (n.getList(0)));
             return list.subList(1, list.size()).iterator();
         }, Encoders.STRING()).withColumnRenamed("value", "dst");
 
         Dataset<Row> revSrcDf = revPathDf.flatMap((FlatMapFunction<Row, String>) n -> {
-            List<String> list = n.getList(0).stream().map(Object::toString)
-                    .collect(java.util.stream.Collectors.toList());
+            List<String> list = ((List<String>) (Object) (n.getList(0)));
             return list.subList(1, list.size()).iterator();
         }, Encoders.STRING()).withColumnRenamed("value", "src");
 
         Dataset<Row> revDstDf = revPathDf.flatMap((FlatMapFunction<Row, String>) n -> {
-            List<String> list = n.getList(0).stream().map(Object::toString)
-                    .collect(java.util.stream.Collectors.toList());
+            List<String> list = ((List<String>) (Object) (n.getList(0)));
             return list.subList(0, list.size() - 1).iterator();
         }, Encoders.STRING()).withColumnRenamed("value", "dst");
 
