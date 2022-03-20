@@ -33,10 +33,10 @@ public class FindPath {
         return Math.sqrt(distance);
     }
 
-    private static Dataset<Row> shortestPath(SparkSession spark, GraphFrame g, String origin, String destination,
-                                              String column_name) {
+    private static Dataset<Row> shortestPath(SparkSession spark, GraphFrame g, String start, String end,
+                                              String columnName) {
 
-        if (g.vertices().filter(g.vertices().col("id").equalTo(destination)).count() == 0) {
+        if (g.vertices().filter(g.vertices().col("id").equalTo(end)).count() == 0) {
             return (spark.createDataFrame(
                             spark.sparkContext().emptyRDD(scala.reflect.ClassTag.apply(Row.class)),
                             g.vertices().schema())
@@ -45,55 +45,55 @@ public class FindPath {
 
         Dataset<Row> vertices = (g.vertices().withColumn("visited", functions.lit(false))
                 .withColumn("distance",
-                        functions.when(g.vertices().col("id").equalTo(origin), 0)
+                        functions.when(g.vertices().col("id").equalTo(start), 0)
                                 .otherwise(Float.POSITIVE_INFINITY))
                 .withColumn("path", functions.array()));
-        Dataset<Row> cached_vertices = AggregateMessages.getCachedDataFrame(vertices);
-        GraphFrame g2 = new GraphFrame(cached_vertices, g.edges());
+        Dataset<Row> cachedVertices = AggregateMessages.getCachedDataFrame(vertices);
+        GraphFrame g2 = new GraphFrame(cachedVertices, g.edges());
 
         while (!g2.vertices().filter("visited == False").isEmpty()) {
-            Object current_node_id = g2.vertices().filter("visited == False").sort("distance").first().getAs("id");
+            Object currentNodeId = g2.vertices().filter("visited == False").sort("distance").first().getAs("id");
 
-            Column msg_distance = AggregateMessages.edge().getField(column_name)
+            Column msgDistance = AggregateMessages.edge().getField(columnName)
                     .plus(AggregateMessages.src().getField("distance"));
-            Column msg_path = functions.array_union(AggregateMessages.src().getField("path"),
+            Column msgPath = functions.array_union(AggregateMessages.src().getField("path"),
                     functions.array(AggregateMessages.src().getField("id")));
 
-            Column msg_for_dst = functions.when(AggregateMessages.src().getField("id").equalTo(current_node_id),
-                    functions.struct(msg_distance, msg_path));
-            Dataset<Row> new_distances = g2.aggregateMessages().sendToDst(msg_for_dst)
+            Column msgForDst = functions.when(AggregateMessages.src().getField("id").equalTo(currentNodeId),
+                    functions.struct(msgDistance, msgPath));
+            Dataset<Row> newDistances = g2.aggregateMessages().sendToDst(msgForDst)
                     .agg(functions.min(AggregateMessages.msg()).alias("aggMess"));
 
-            Column new_visited_col = functions.when(
-                    g2.vertices().col("visited").or((g2.vertices().col("id").equalTo(current_node_id))),
+            Column newVisitedCol = functions.when(
+                    g2.vertices().col("visited").or((g2.vertices().col("id").equalTo(currentNodeId))),
                     true).otherwise(false);
-            Column new_distance_col = functions
-                    .when(new_distances.col("aggMess").isNotNull()
-                                    .and(new_distances.col("aggMess").getField("col1").lt(g2.vertices().col("distance"))),
-                            new_distances.col("aggMess").getField("col1"))
+            Column newDistanceCol = functions
+                    .when(newDistances.col("aggMess").isNotNull()
+                                    .and(newDistances.col("aggMess").getField("col1").lt(g2.vertices().col("distance"))),
+                            newDistances.col("aggMess").getField("col1"))
                     .otherwise(g2.vertices().col("distance"));
-            Column new_path_col = functions.when(
-                            new_distances.col("aggMess").isNotNull()
-                                    .and(new_distances.col("aggMess").getField("col1").lt(g2.vertices().col("distance"))),
-                            new_distances.col("aggMess").getField("col2")
+            Column newPathCol = functions.when(
+                            newDistances.col("aggMess").isNotNull()
+                                    .and(newDistances.col("aggMess").getField("col1").lt(g2.vertices().col("distance"))),
+                            newDistances.col("aggMess").getField("col2")
                                     .cast("array<string>"))
                     .otherwise(g2.vertices().col("path"));
 
-            Dataset<Row> new_vertices = (g2.vertices()
-                    .join(new_distances, g2.vertices().col("id").equalTo(new_distances.col("id")),
+            Dataset<Row> newVertices = (g2.vertices()
+                    .join(newDistances, g2.vertices().col("id").equalTo(newDistances.col("id")),
                             "leftouter")
-                    .drop(new_distances.col("id"))
-                    .withColumn("visited", new_visited_col)
-                    .withColumn("newDistance", new_distance_col)
-                    .withColumn("newPath", new_path_col)
+                    .drop(newDistances.col("id"))
+                    .withColumn("visited", newVisitedCol)
+                    .withColumn("newDistance", newDistanceCol)
+                    .withColumn("newPath", newPathCol)
                     .drop("aggMess", "distance", "path")
                     .withColumnRenamed("newDistance", "distance")
                     .withColumnRenamed("newPath", "path"));
-            Dataset<Row> cached_new_vertices = AggregateMessages.getCachedDataFrame(new_vertices);
-            g2 = new GraphFrame(cached_new_vertices, g2.edges());
-            if (g2.vertices().filter(g2.vertices().col("id").equalTo(destination)).first().getAs("visited")
+            Dataset<Row> cachedNewVertices = AggregateMessages.getCachedDataFrame(newVertices);
+            g2 = new GraphFrame(cachedNewVertices, g2.edges());
+            if (g2.vertices().filter(g2.vertices().col("id").equalTo(end)).first().getAs("visited")
                     .equals(Boolean.TRUE)) {
-                return (g2.vertices().filter(g2.vertices().col("id").equalTo(destination))
+                return (g2.vertices().filter(g2.vertices().col("id").equalTo(end))
                         .withColumn("newPath",
                                 functions.array_union(g2.vertices().col("path"),
                                         functions.array(g2.vertices().col("id"))))
@@ -219,7 +219,7 @@ public class FindPath {
         org.apache.hadoop.fs.FSDataOutputStream fsDataOutputStream = fs.create(new org.apache.hadoop.fs.Path(args[3]));
         java.io.BufferedWriter bufferedWriter = new java.io.BufferedWriter(
                         new java.io.OutputStreamWriter(fsDataOutputStream));
-        for (int i = 0; i < startList.size(); i++) {
+                        for (int i = 0; i < startList.size(); i++) {
                 List<String> path = shortestPath(spark, g, startList.get(i), endList.get(i), "dist").select("path")
                                 .first().getList(0);
                 bufferedWriter.write(path.stream().collect(java.util.stream.Collectors.joining(" -> ")).toString());
