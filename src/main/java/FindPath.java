@@ -34,6 +34,8 @@ public class FindPath {
     }
 
     public static void main(String[] args) throws Exception {
+        String outputDir = args[2].split(org.apache.hadoop.fs.Path.SEPARATOR)[0];
+
         SparkSession spark = SparkSession.builder()
                 .appName("FindPath")
                 .getOrCreate();
@@ -136,6 +138,9 @@ public class FindPath {
 
         org.apache.hadoop.fs.FileSystem fs = org.apache.hadoop.fs.FileSystem.get(spark.sparkContext().hadoopConfiguration());
         String file = fs.globStatus(new org.apache.hadoop.fs.Path(tmpDir + org.apache.hadoop.fs.Path.SEPARATOR + outputFileNamePattern))[0].getPath().getName();
+        if (!fs.exists(new org.apache.hadoop.fs.Path(outputDir))) {
+            fs.mkdirs(new org.apache.hadoop.fs.Path(outputDir));
+        }
         fs.rename(new org.apache.hadoop.fs.Path(tmpDir + org.apache.hadoop.fs.Path.SEPARATOR + file), new org.apache.hadoop.fs.Path(args[2]));
 
         fs.deleteOnExit(tmpDir);
