@@ -35,14 +35,15 @@ public class FindPath {
 
     private static Dataset<Row> shortestPath(SparkSession spark, GraphFrame g, String start, String end,
                                               String columnName) {
-
+        // If end is is not in vertices, return empty dataframe
         if (g.vertices().filter(g.vertices().col("id").equalTo(end)).count() == 0) {
             return (spark.createDataFrame(
                             spark.sparkContext().emptyRDD(scala.reflect.ClassTag.apply(Row.class)),
                             g.vertices().schema())
                     .withColumn("path", functions.array()));
         }
-
+        
+        // Set visited to false and distance to infinity for all vertices except start
         Dataset<Row> vertices = (g.vertices().withColumn("visited", functions.lit(false))
                 .withColumn("distance",
                         functions.when(g.vertices().col("id").equalTo(start), 0)
@@ -54,31 +55,38 @@ public class FindPath {
         while (!g2.vertices().filter("visited == False").isEmpty()) {
             Object currentNodeId = g2.vertices().filter("visited == False").sort("distance").first().getAs("id");
 
+            // Sum distance, append path
             Column msgDistance = AggregateMessages.edge().getField(columnName)
                     .plus(AggregateMessages.src().getField("distance"));
             Column msgPath = functions.array_union(AggregateMessages.src().getField("path"),
                     functions.array(AggregateMessages.src().getField("id")));
-
+            
+            // Combine distance and path
             Column msgForDst = functions.when(AggregateMessages.src().getField("id").equalTo(currentNodeId),
                     functions.struct(msgDistance, msgPath));
+            // Aggregation function returns the minimum, by distance as it comes first, for this node only
             Dataset<Row> newDistances = g2.aggregateMessages().sendToDst(msgForDst)
                     .agg(functions.min(AggregateMessages.msg()).alias("aggMess"));
 
+            // Mark current node as visited
             Column newVisitedCol = functions.when(
                     g2.vertices().col("visited").or((g2.vertices().col("id").equalTo(currentNodeId))),
                     true).otherwise(false);
+            // Update minimum distance for current node
             Column newDistanceCol = functions
                     .when(newDistances.col("aggMess").isNotNull()
                                     .and(newDistances.col("aggMess").getField("col1").lt(g2.vertices().col("distance"))),
                             newDistances.col("aggMess").getField("col1"))
                     .otherwise(g2.vertices().col("distance"));
+            // Update path with exact same criterion as that for distance
             Column newPathCol = functions.when(
                             newDistances.col("aggMess").isNotNull()
                                     .and(newDistances.col("aggMess").getField("col1").lt(g2.vertices().col("distance"))),
                             newDistances.col("aggMess").getField("col2")
                                     .cast("array<string>"))
                     .otherwise(g2.vertices().col("path"));
-
+            
+            // Update vertices with the above fields to store them
             Dataset<Row> newVertices = (g2.vertices()
                     .join(newDistances, g2.vertices().col("id").equalTo(newDistances.col("id")),
                             "leftouter")
@@ -91,6 +99,8 @@ public class FindPath {
                     .withColumnRenamed("newPath", "path"));
             Dataset<Row> cachedNewVertices = AggregateMessages.getCachedDataFrame(newVertices);
             g2 = new GraphFrame(cachedNewVertices, g2.edges());
+            
+            // Terminate early upon reaching end
             if (g2.vertices().filter(g2.vertices().col("id").equalTo(end)).first().getAs("visited")
                     .equals(Boolean.TRUE)) {
                 return (g2.vertices().filter(g2.vertices().col("id").equalTo(end))
@@ -101,7 +111,8 @@ public class FindPath {
                         .withColumnRenamed("newPath", "path"));
             }
         }
-
+            
+        // Return empty dataframe, unable to find path to end
         return (spark.createDataFrame(spark.sparkContext().emptyRDD(scala.reflect.ClassTag.apply(Row.class)),
                         g.vertices().schema())
                 .withColumn("path", functions.array()));
