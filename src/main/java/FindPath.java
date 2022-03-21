@@ -47,7 +47,7 @@ public class FindPath {
 
     private static Dataset<Row> shortestPath(SparkSession spark, GraphFrame g, String start, String end,
                                              String columnName) {
-        // If end is is not in vertices, return empty dataframe
+        // If end is not in vertices, return empty dataframe
         if (g.vertices().filter(g.vertices().col("id").equalTo(end)).count() == 0) {
             return (spark.createDataFrame(
                             spark.sparkContext().emptyRDD(ClassTag.apply(Row.class)),
@@ -79,7 +79,7 @@ public class FindPath {
             Column msgForDst = functions.when(AggregateMessages.src().getField("id").equalTo(currentNodeId),
                     functions.struct(msgDistance, msgPath));
             // Aggregation function returns the minimum, by distance as it comes first, for
-            // this node only
+            // node itself only
             Dataset<Row> newDistances = g2.aggregateMessages().sendToDst(msgForDst)
                     .agg(functions.min(AggregateMessages.msg()).alias("aggMess"));
 
