@@ -118,8 +118,7 @@ public class FindPath {
             g2 = new GraphFrame(cachedNewVertices, g2.edges());
 
             // Terminate early upon reaching end
-            if (g2.vertices().filter(g2.vertices().col("id").equalTo(end)).first().getAs("visited")
-                    .equals(Boolean.TRUE)) {
+            if (currentNodeId.equals(end)) {
                 return (g2.vertices().filter(g2.vertices().col("id").equalTo(end))
                         .withColumn("newPath", functions.array_union(g2.vertices().col("path"),
                                 functions.array(g2.vertices().col("id"))))
