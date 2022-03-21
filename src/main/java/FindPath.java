@@ -42,25 +42,25 @@ public class FindPath {
                             g.vertices().schema())
                     .withColumn("path", functions.array()));
         }
-        
+
         // Set visited to false and distance to infinity for all vertices except start
-        Dataset<Row> vertices = (g.vertices().withColumn("visited", functions.lit(false))
+        Dataset<Row> vertices = (g.vertices().withColumn("visited", functions.lit(Boolean.FALSE))
                 .withColumn("distance",
-                        functions.when(g.vertices().col("id").equalTo(start), 0)
+                        functions.when(g.vertices().col("id").equalTo(start), 0.0)
                                 .otherwise(Float.POSITIVE_INFINITY))
                 .withColumn("path", functions.array()));
         Dataset<Row> cachedVertices = AggregateMessages.getCachedDataFrame(vertices);
         GraphFrame g2 = new GraphFrame(cachedVertices, g.edges());
 
-        while (!g2.vertices().filter("visited == False").isEmpty()) {
-            Object currentNodeId = g2.vertices().filter("visited == False").sort("distance").first().getAs("id");
+        while (!g2.vertices().filter("visited = false").isEmpty()) {
+            Object currentNodeId = g2.vertices().filter("visited = false").sort("distance").first().getAs("id");
 
             // Sum distance, append path
             Column msgDistance = AggregateMessages.edge().getField(columnName)
                     .plus(AggregateMessages.src().getField("distance"));
             Column msgPath = functions.array_union(AggregateMessages.src().getField("path"),
                     functions.array(AggregateMessages.src().getField("id")));
-            
+
             // Combine distance and path
             Column msgForDst = functions.when(AggregateMessages.src().getField("id").equalTo(currentNodeId),
                     functions.struct(msgDistance, msgPath));
@@ -71,7 +71,7 @@ public class FindPath {
             // Mark current node as visited
             Column newVisitedCol = functions.when(
                     g2.vertices().col("visited").or((g2.vertices().col("id").equalTo(currentNodeId))),
-                    true).otherwise(false);
+                    Boolean.TRUE).otherwise(Boolean.FALSE);
             // Update minimum distance for current node
             Column newDistanceCol = functions
                     .when(newDistances.col("aggMess").isNotNull()
@@ -85,7 +85,7 @@ public class FindPath {
                             newDistances.col("aggMess").getField("col2")
                                     .cast("array<string>"))
                     .otherwise(g2.vertices().col("path"));
-            
+
             // Update vertices with the above fields to store them
             Dataset<Row> newVertices = (g2.vertices()
                     .join(newDistances, g2.vertices().col("id").equalTo(newDistances.col("id")),
@@ -99,7 +99,7 @@ public class FindPath {
                     .withColumnRenamed("newPath", "path"));
             Dataset<Row> cachedNewVertices = AggregateMessages.getCachedDataFrame(newVertices);
             g2 = new GraphFrame(cachedNewVertices, g2.edges());
-            
+
             // Terminate early upon reaching end
             if (g2.vertices().filter(g2.vertices().col("id").equalTo(end)).first().getAs("visited")
                     .equals(Boolean.TRUE)) {
@@ -111,7 +111,7 @@ public class FindPath {
                         .withColumnRenamed("newPath", "path"));
             }
         }
-            
+
         // Return empty dataframe, unable to find path to end
         return (spark.createDataFrame(spark.sparkContext().emptyRDD(scala.reflect.ClassTag.apply(Row.class)),
                         g.vertices().schema())
@@ -138,20 +138,19 @@ public class FindPath {
 
         Dataset<Row> input = spark.read().text(args[1]);
         input = input.withColumn("start", functions.split(input.col("value"), " ").getItem(0))
-                .withColumn("end", functions.split(input.col("value"), " ").getItem(1))
-                .drop("value");
+                .withColumn("end", functions.split(input.col("value"), " ").getItem(1));
         List<String> startList = input.select("start").collectAsList().stream().map(r -> r.get(0).toString()).collect(java.util.stream.Collectors.toList());
         List<String> endList = input.select("end").collectAsList().stream().map(r -> r.get(0).toString()).collect(java.util.stream.Collectors.toList());
 
         Dataset<Row> highwayDf = wayDf.where("array_contains(tag._k,'highway')");
-        Dataset<Row> revHighwayDf = highwayDf
-                .where("!array_contains(tag,named_struct('_VALUE', CAST(NULL as string), '_k','oneway','_v','yes'))");
 
         Dataset<Row> v = nodeDf.select(nodeDf.col("_id").cast("string").as("id"), nodeDf.col("_lat"),
                 nodeDf.col("_lon"));
 
         Dataset<Row> pathDf = highwayDf.select("nd._ref").selectExpr("cast(_ref as array<string>) _ref");
-        Dataset<Row> revPathDf = revHighwayDf.select("nd._ref").selectExpr("cast(_ref as array<string>) _ref");
+        Dataset<Row> revPathDf = highwayDf
+                .where("!array_contains(tag,named_struct('_VALUE', CAST(NULL as string), '_k','oneway','_v','yes'))")
+                .select("nd._ref").selectExpr("cast(_ref as array<string>) _ref");
 
         Dataset<Row> srcDf = pathDf.flatMap((FlatMapFunction<Row, String>) n -> {
             List<String> list = ((List<String>) (Object) (n.getList(0)));
@@ -204,16 +203,13 @@ public class FindPath {
 
         GraphFrame g = new GraphFrame(v, e).dropIsolatedVertices();
 
-        v.cache();
-        e.cache();
-
-        Dataset<Row> tmpEdges = g.edges()
+        Dataset<Row> adjMap = g.edges()
                 .distinct()
                 .coalesce(1)
                 .groupBy("src")
                 .agg(functions.collect_list("dst").as("dst"));
 
-        tmpEdges.withColumn("dst", functions.concat_ws(" ", tmpEdges.col("dst")))
+        adjMap.withColumn("dst", functions.concat_ws(" ", adjMap.col("dst")))
                 .map((MapFunction<Row, String>) x -> x.get(0).toString() + " " + x.get(1).toString(), Encoders.STRING())
                 .write()
                 .text(tmpDirName);
@@ -233,7 +229,7 @@ public class FindPath {
                         for (int i = 0; i < startList.size(); i++) {
                 List<String> path = shortestPath(spark, g, startList.get(i), endList.get(i), "dist").select("path")
                                 .first().getList(0);
-                bufferedWriter.write(path.stream().collect(java.util.stream.Collectors.joining(" -> ")).toString());
+                bufferedWriter.write(String.join(" -> ", path));
                 bufferedWriter.newLine();
                 bufferedWriter.flush();
         }
