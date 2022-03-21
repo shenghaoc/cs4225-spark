@@ -20,6 +20,8 @@ import org.apache.spark.sql.types.DataTypes;
 import org.graphframes.GraphFrame;
 import org.graphframes.lib.AggregateMessages;
 
+import scala.reflect.ClassTag;
+
 public class FindPath {
 
     private static final String tmpDirName = "tmp";
@@ -48,7 +50,7 @@ public class FindPath {
         // If end is is not in vertices, return empty dataframe
         if (g.vertices().filter(g.vertices().col("id").equalTo(end)).count() == 0) {
             return (spark.createDataFrame(
-                            spark.sparkContext().emptyRDD(scala.reflect.ClassTag.apply(Row.class)),
+                            spark.sparkContext().emptyRDD(ClassTag.apply(Row.class)),
                             g.vertices().schema())
                     .withColumn("path", functions.array()));
         }
@@ -103,7 +105,7 @@ public class FindPath {
                     .otherwise(g2.vertices().col("path"));
 
             // Update vertices with the above fields to store them
-            Dataset<Row> newVertices = (g2.vertices()
+            Dataset<Row> newVertices = g2.vertices()
                     .join(newDistances, g2.vertices().col("id").equalTo(newDistances.col("id")), "leftouter")
                     .drop(newDistances.col("id"))
                     .withColumn("visited", newVisitedCol)
@@ -111,7 +113,7 @@ public class FindPath {
                     .withColumn("newPath", newPathCol)
                     .drop("aggMess", "distance", "path")
                     .withColumnRenamed("newDistance", "distance")
-                    .withColumnRenamed("newPath", "path"));
+                    .withColumnRenamed("newPath", "path");
             Dataset<Row> cachedNewVertices = AggregateMessages.getCachedDataFrame(newVertices);
             g2 = new GraphFrame(cachedNewVertices, g2.edges());
 
@@ -127,7 +129,7 @@ public class FindPath {
         }
 
         // Return empty dataframe, unable to find path to end
-        return (spark.createDataFrame(spark.sparkContext().emptyRDD(scala.reflect.ClassTag.apply(Row.class)),
+        return (spark.createDataFrame(spark.sparkContext().emptyRDD(ClassTag.apply(Row.class)),
                         g.vertices().schema())
                 .withColumn("path", functions.array()));
 
