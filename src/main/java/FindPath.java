@@ -48,7 +48,7 @@ public class FindPath {
     private static Dataset<Row> shortestPath(SparkSession spark, GraphFrame g, String start, String end,
                                              String columnName) {
         // If end is not in vertices, return empty dataframe
-        if (g.vertices().filter(g.vertices().col("id").equalTo(end)).count() == 0) {
+        if (g.vertices().filter(g.vertices().col("id").equalTo(end)).isEmpty()) {
             return (spark.createDataFrame(
                             spark.sparkContext().emptyRDD(ClassTag.apply(Row.class)),
                             g.vertices().schema())
