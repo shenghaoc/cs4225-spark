@@ -69,6 +69,15 @@ public class FindPath {
                     .first()
                     .getAs("id");
 
+            // Terminate early upon reaching end
+            if (currentNodeId.equals(end)) {
+                return (g2.vertices().filter(g2.vertices().col("id").equalTo(end))
+                        .withColumn("newPath", functions.array_union(g2.vertices().col("path"),
+                                functions.array(g2.vertices().col("id"))))
+                        .drop("visited", "path")
+                        .withColumnRenamed("newPath", "path"));
+            }
+
             // Sum distance, append path
             Column msgDistance = AggregateMessages.edge().getField(columnName)
                     .plus(AggregateMessages.src().getField("distance"));
@@ -78,8 +87,7 @@ public class FindPath {
             // Combine distance and path
             Column msgForDst = functions.when(AggregateMessages.src().getField("id").equalTo(currentNodeId),
                     functions.struct(msgDistance, msgPath));
-            // Aggregation function returns the minimum, by distance as it comes first, for
-            // node itself only
+            // Distance and path from source for nodes that current node can travel to
             Dataset<Row> newDistances = g2.aggregateMessages().sendToDst(msgForDst)
                     .agg(functions.min(AggregateMessages.msg()).alias("aggMess"));
 
@@ -116,15 +124,6 @@ public class FindPath {
                     .withColumnRenamed("newPath", "path");
             Dataset<Row> cachedNewVertices = AggregateMessages.getCachedDataFrame(newVertices);
             g2 = new GraphFrame(cachedNewVertices, g2.edges());
-
-            // Terminate early upon reaching end
-            if (currentNodeId.equals(end)) {
-                return (g2.vertices().filter(g2.vertices().col("id").equalTo(end))
-                        .withColumn("newPath", functions.array_union(g2.vertices().col("path"),
-                                functions.array(g2.vertices().col("id"))))
-                        .drop("visited", "path")
-                        .withColumnRenamed("newPath", "path"));
-            }
         }
 
         // Return empty dataframe, unable to find path to end
