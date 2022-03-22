@@ -99,8 +99,7 @@ public class FindPath {
                             newDistances.col("aggMess").isNotNull()
                                     .and(newDistances.col("aggMess").getField("col1")
                                             .lt(g2.vertices().col("distance"))),
-                            newDistances.col("aggMess").getField("col2")
-                                    .cast("array<string>"))
+                            newDistances.col("aggMess").getField("col2"))
                     .otherwise(g2.vertices().col("path"));
 
             // Update vertices with the above fields to store them
