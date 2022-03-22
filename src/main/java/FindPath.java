@@ -54,12 +54,11 @@ public class FindPath {
                 .withColumn("path", functions.array()));
         Dataset<Row> cachedVertices = AggregateMessages.getCachedDataFrame(vertices);
         GraphFrame g2 = new GraphFrame(cachedVertices, g.edges());
-
-        while (!g2.vertices().filter("visited = false").isEmpty()) {
-            Object currentNodeId = g2.vertices().filter("visited = false")
-                    .sort("distance")
-                    .first()
-                    .getAs("id");
+        Object currentNodeId;
+        while ((currentNodeId = g2.vertices().filter("visited = false")
+                .sort("distance")
+                .first()
+                .getAs("id")) != null) {
 
             // Terminate early upon reaching end
             if (currentNodeId.equals(end)) {
