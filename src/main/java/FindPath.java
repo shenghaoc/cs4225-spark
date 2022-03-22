@@ -47,14 +47,6 @@ public class FindPath {
 
     private static Dataset<Row> shortestPath(SparkSession spark, GraphFrame g, String start, String end,
                                              String columnName) {
-        // If end is not in vertices, return empty dataframe
-        if (g.vertices().filter(g.vertices().col("id").equalTo(end)).isEmpty()) {
-            return (spark.createDataFrame(
-                            spark.sparkContext().emptyRDD(ClassTag.apply(Row.class)),
-                            g.vertices().schema())
-                    .withColumn("path", functions.array()));
-        }
-
         // Set visited to false and distance to infinity for all vertices except start
         Dataset<Row> vertices = (g.vertices().withColumn("visited", functions.lit(Boolean.FALSE))
                 .withColumn("distance", functions.when(g.vertices().col("id").equalTo(start), 0.0)
