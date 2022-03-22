@@ -223,6 +223,8 @@ public class FindPath {
 
         GraphFrame g = new GraphFrame(v, e).dropIsolatedVertices();
 
+        g.cache();
+
         Dataset<Row> adjMap = g.edges()
                 .distinct()
                 .coalesce(1)
