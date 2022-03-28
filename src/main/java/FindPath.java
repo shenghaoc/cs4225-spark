@@ -136,6 +136,8 @@ public class FindPath {
 
         SparkSession spark = SparkSession.builder()
                 .appName("FindPath")
+                .config("spark.executor.cores", 4)
+                .config("spark.executor.instances", 10)
                 .getOrCreate();
 
         Dataset<Row> nodeDf = spark.read()
