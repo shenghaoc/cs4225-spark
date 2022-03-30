@@ -74,4 +74,11 @@
             <version>0.8.1-spark3.0-s_2.12</version>
         </dependency>
     </dependencies>
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub shenghaoc Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/shenghaoc/cs4225-spark</url>
+        </repository>
+    </distributionManagement>
 </project>
