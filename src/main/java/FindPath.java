@@ -132,7 +132,7 @@ public class FindPath {
     }
 
     public static void main(String[] args) throws Exception {
-        String outputDir = args[2].split(Path.SEPARATOR)[0];
+        String outputDir = new Path(args[2]).getParent().toString();
 
         SparkSession spark = SparkSession.builder()
                 .appName("FindPath")
